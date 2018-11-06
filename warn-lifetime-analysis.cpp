@@ -1,93 +1,11 @@
-// RUN: %clang_cc1 -fsyntax-only -verify -Wlifetime %s
-namespace std {
-using size_t = decltype(sizeof(int));
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
 
-struct string_view {
-  struct iterator {
-    char &operator*();
-    iterator &operator++();
-    bool operator!=(const iterator &) const;
-  };
-  string_view();
-  string_view(const char *s);
-  char &operator[](int i);
-  iterator begin();
-  iterator end();
-};
-
-struct string {
-  struct iterator {
-    char &operator*();
-    iterator &operator++();
-    bool operator!=(const iterator &) const;
-  };
-  string();
-  string(const char *s, size_t len);
-  string(const char *s);
-  explicit string(const string_view &);
-  char &operator[](int i);
-  operator string_view();
-  ~string();
-  iterator begin();
-  iterator end();
-};
-
-template <typename T>
-struct unique_ptr {
-  T &operator*() const;
-  T *get();
-  ~unique_ptr();
-};
-
-template <class T, class... Args>
-unique_ptr<T> make_unique(Args &&... args);
-
-template <typename T>
-struct optional {
-  T &value();
-};
-
-template <class T>
-struct allocator {
-  allocator();
-};
-
-template <class T>
-class initializer_list {
-  initializer_list() noexcept;
-};
-
-template <
-    class T,
-    class Allocator = std::allocator<T>>
-struct vector {
-  struct iterator {
-    T &operator*();
-    iterator &operator++();
-    bool operator!=(const iterator &) const;
-  };
-  vector(size_t);
-  vector(std::initializer_list<T> init,
-         const Allocator &alloc = Allocator());
-  T &operator[](size_t);
-  iterator begin();
-  iterator end();
-  ~vector();
-};
-
-template <typename K, typename V>
-struct pair {
-  K first;
-  V second;
-};
-
-template <typename K, typename V>
-struct map {
-  using iterator = pair<K, V> *;
-  iterator find(const K &) const;
-  iterator end() const;
-};
-} // namespace std
+#define IGNORE(x)
 
 struct Owner {
   ~Owner();
@@ -95,7 +13,7 @@ struct Owner {
   int f();
 };
 
-struct [[gsl::Pointer]] my_pointer {
+struct IGNORE([[gsl::Pointer]]) my_pointer {
   int &operator*();
 };
 
@@ -131,6 +49,7 @@ void ref_to_member_leaves_scope_call() {
   p->f();       // expected-warning {{passing a dangling pointer as argument}}
   int i = p->m; // expected-warning {{dereferencing a dangling pointer}}
   p->m = 4;     // expected-warning {{dereferencing a dangling pointer}}
+  (void)i;
 }
 
 // No Pointer involved, thus not checked.
@@ -167,6 +86,7 @@ int *global_null_p = nullptr;   // OK
 
 void uninitialized_static() {
   static int *p; // OK, statics initialize to null
+  (void)p;
 }
 
 void function_call() {
@@ -243,7 +163,7 @@ void test() {
 } // namespace supress_further_warnings
 
 namespace do_not_check_Owner_methods {
-struct [[gsl::Owner]] Owner {
+struct IGNORE([[gsl::Owner]]) Owner {
   int &operator*();
   ~Owner();
   void f() {
@@ -283,10 +203,12 @@ std::optional<std::vector<int>> getOptVec();
 
 void sj3() {
   for (int value : getVec()) { // OK
+    (void)value;
   }
 
   for (int value : getOptVec().value()) { // expected-warning {{dereferencing a dangling pointer}}
     // expected-note@-1 {{temporary was destroyed at the end of the full expression}}
+    (void)value;
   }
 }
 
@@ -295,10 +217,12 @@ std::unique_ptr<std::vector<int>> getOptVec_alt();
 
 void sj3_alt() {
   for (int value : getVec_alt()) { // OK
+    (void)value;
   }
 
   for (int value : *getOptVec_alt()) { // expected-warning {{dereferencing a dangling pointer}}
     // expected-note@-1 {{temporary was destroyed at the end of the full expression}}
+    (void)value;
   }
 }
 
@@ -321,6 +245,7 @@ void sj4() {
   std::string_view hi = "hi";
   auto xy = concat(hi, hi);
   // expected-note@-1 {{in instantiation of function template specialization 'P0936::concat<std::string_view>' requested here}}
+  (void)xy;
 }
 
 std::string GetString();
